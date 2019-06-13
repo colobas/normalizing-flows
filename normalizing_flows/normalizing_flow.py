@@ -3,8 +3,27 @@ import torch.distributions as distrib
 import torch.distributions.transforms as transform
 
 class NormalizingFlow(nn.Module):
+    """
+    Instantiate a trainable NormalizingFlow
 
-    def __init__(self, dim, blocks, flow_length, density):
+    dim: random variable dimension
+    blocks: list of primitive flows to stack
+    flow_length: how many times to stack the blocks in `blocks`
+
+    example:
+        - to have 3 x [AffineLUFlow, PReLUFlow], do
+            blocks=[AffineLUFlow, PReLUFlow],
+            flow_length=3
+
+        - to specify the sequence of flows explicitely, do
+            blocks=[the, specific, sequence, of, flows, you, want],
+            flow_length=1
+
+    `flow_length` defaults to 1, because I think the latter scenario
+    is what most people will assume without reading the docstring
+    """
+
+    def __init__(self, dim, blocks, density, flow_length=1):
         super().__init__()
         biject = []
         for f in range(flow_length):
