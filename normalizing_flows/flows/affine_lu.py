@@ -1,7 +1,11 @@
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.distributions as distrib
 import torch.distributions.transforms as transform
+
+from scipy import linalg as splin
 
 from .flow import Flow
 
