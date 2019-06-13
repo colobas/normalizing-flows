@@ -23,7 +23,7 @@ class NormalizingFlow(nn.Module):
     is what most people will assume without reading the docstring
     """
 
-    def __init__(self, dim, blocks, density, flow_length=1):
+    def __init__(self, dim, blocks, base_density, flow_length=1):
         super().__init__()
         biject = []
         for f in range(flow_length):
@@ -31,8 +31,8 @@ class NormalizingFlow(nn.Module):
                 biject.append(b_flow(dim))
         self.transforms = transform.ComposeTransform(biject)
         self.bijectors = nn.ModuleList(biject)
-        self.base_density = density
-        self.final_density = distrib.TransformedDistribution(density, self.transforms)
+        self.base_density = base_density
+        self.final_density = distrib.TransformedDistribution(base_density, self.transforms)
         self.log_det = []
 
     def forward(self, z0):
