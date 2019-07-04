@@ -25,19 +25,21 @@ class AffineLUFlow(Flow):
         self.I = torch.eye(weights.size(0))
         # Now compute s
         self.s = nn.Parameter(torch.Tensor(np.diag(U)))
+        self.shift = nn.Parameter(torch.ones(dim))
         self.bijective = True
 
     def _call(self, z):
         L = self.L * self.mask_low + self.I
         U = self.U * self.mask_up + torch.diag(self.s)
         weights = self.P @ L @ U
-        return z @ weights
+        return (weights @ z.unsqueeze(-1)).squeeze(-1) + self.shift
 
     def _inverse(self, z):
         L = self.L * self.mask_low + self.I
         U = self.U * self.mask_up + torch.diag(self.s)
         weights = self.P @ L @ U
-        return z @ torch.inverse(weights)
+        return (torch.inverse(weights) @ (z - self.shift).unsqueeze(-1)).squeeze(-1)
 
-    def log_abs_det_jacobian(self, z, y):
-        return torch.sum(torch.log(torch.abs(self.s))).unsqueeze(0).repeat(z.size(0), 1)
+    def log_abs_det_jacobian(self, z, z_next):
+        return torch.sum(
+                torch.log(torch.abs(self.s))).unsqueeze(0).repeat(z.size(0), 1).squeeze()

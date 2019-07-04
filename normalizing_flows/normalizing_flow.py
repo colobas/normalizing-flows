@@ -33,14 +33,23 @@ class NormalizingFlow(nn.Module):
         self.bijectors = nn.ModuleList(biject)
         self.base_density = base_density
         self.final_density = distrib.TransformedDistribution(base_density, self.transforms)
-        self.log_det = []
 
     def forward(self, z0):
-        self.log_det = []
+        log_det = []
         # Applies series of flows
         z_cur = z0
         for b in range(len(self.bijectors)):
             z_next = self.bijectors[b](z_cur)
-            self.log_det.append(self.bijectors[b].log_abs_det_jacobian(z_cur, z_next))
+            log_det.append(self.bijectors[b].log_abs_det_jacobian(z_cur, z_next))
             z_cur = z_next
-        return z_next, self.log_det
+        return z_next, log_det
+
+    def inverse(self, z):
+        L = len(self.bijectors)
+        z_cur = z
+
+        for b in range(L):
+            z_cur = self.bijectors[(L-1) - b]._inverse(z_cur)
+            self.log_det.append(self.bijectors[b].log_abs_det_jacobian(z_cur, z_next))
+
+        return z_cur
