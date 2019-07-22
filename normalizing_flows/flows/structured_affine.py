@@ -52,7 +52,7 @@ class StructuredAffineFlow(Flow):
         first_term = 1 + self.v.t() @ triangular_solve(self.u, self.A)[0]
 
 
-        return ((first_term * det_A)
+        return ((first_term.log() +  det_A.log()).abs()
                     # the jacobian is constant, so we just repeat it for the
                     # whole batch
                     .repeat(z.size(0), 1)
