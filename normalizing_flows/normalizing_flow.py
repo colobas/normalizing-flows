@@ -23,12 +23,21 @@ class NormalizingFlow(nn.Module):
     is what most people will assume without reading the docstring
     """
 
-    def __init__(self, dim, blocks, base_density, flow_length=1):
+    def __init__(self, dim, blocks, base_density, flow_length=1, block_args=None):
         super().__init__()
         biject = []
-        for f in range(flow_length):
-            for b_flow in blocks:
-                biject.append(b_flow(dim))
+        if block_args is None:
+            for f in range(flow_length):
+                for b_flow in blocks:
+                    biject.append(b_flow(dim))
+        else:
+             for f in range(flow_length):
+                for b_flow, b_args in zip(blocks, block_args):
+                    if b_args is not None:
+                        biject.append(b_flow(dim, *b_args))
+                    else:
+                        biject.append(b_flow(dim))
+
         self.transforms = transform.ComposeTransform(biject)
         self.bijectors = nn.ModuleList(biject)
         self.base_density = base_density
