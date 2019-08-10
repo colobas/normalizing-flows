@@ -62,3 +62,6 @@ class NormalizingFlow(nn.Module):
             self.log_det.append(self.bijectors[b].log_abs_det_jacobian(z_cur, z_next))
 
         return z_cur
+
+    def log_prob(self, x):
+        return self.final_density.log_prob(x)
