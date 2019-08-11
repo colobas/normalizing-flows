@@ -15,46 +15,57 @@ else:
 class StructuredAffineFlow(Flow):
     def __init__(self, dim):
         super(StructuredAffineFlow, self).__init__()
-        self.A_tril = nn.Parameter(torch.randn(int(dim * (dim + 1)/2)))
-        self.u = nn.Parameter(torch.randn(dim, 1))
-        self.v = nn.Parameter(torch.randn(dim, 1))
-        self.shift = nn.Parameter(torch.randn(dim))
-        self.A = torch.zeros(dim, dim)
+
+        self.V = nn.Parameter(torch.rand(dim, dim))
+        nn.init.xavier_uniform_(self.V)
+
+        shift = nn.init.xavier_uniform_(torch.rand(dim, 1)).squeeze()
+        self.shift = nn.Parameter(shift)
+
+        self.tril_mask = torch.zeros(dim, dim)
         self.tril_indices = np.tril_indices(dim)
+        self.tril_mask[self.tril_indices] = 1.
+
+        L = torch.zeros(dim, dim)
+        L[self.tril_indices] = nn.init.xavier_uniform_(
+                torch.ones(len(self.tril_indices[0]), 1)).squeeze()
+        self.L = nn.Parameter(L)
+
+        self.I = torch.eye(dim)
+
+        if dim == 1:
+            self.mul = torch.mul
+        else:
+            self.mul = torch.matmul
 
     @property
     def weights(self):
-        self.A[self.tril_indices] = self.A_tril
-
-        return self.A + (self.u @ self.v.t())
+        return (self.L * self.tril_mask) + self.mul(self.V, self.V.t())
 
     def _call(self, z):
-        return (self.weights @ z.unsqueeze(-1)).squeeze(-1) + self.shift
+        return self.mul(self.weights, z.unsqueeze(-1)).squeeze(-1) + self.shift
 
     def _inverse(self, z):
-        return (torch.inverse(self.weights) @ (z - self.shift).unsqueeze(-1)).squeeze(-1)
+        return self.mul(torch.inverse(self.weights), (z - self.shift).unsqueeze(-1)).squeeze(-1)
 
     def log_abs_det_jacobian(self, z, z_next):
         """
-        Matrix determinant lemma: https://en.wikipedia.org/wiki/Matrix_determinant_lemma
-        A is triangular, so its determinant is the product of its diagonal
-
-        det(A + uv^T) = (1 + v^T A^-1 u) * det(A)
-
-        to compute (A^-1 u) use `torch.triangular_solve` (or `torch.trtrs` if 
-        `triangular_solve` isn't available)
-            - see https://pytorch.org/docs/stable/torch.html#torch.triangular_solve
-
+        roughly following tensorflow's LinearOperatorLowRankUpdate logic and
+        naming, but U and V are the same, and D is the identity
         """
+        log_det_L = self.L.diag().abs().log().sum()
 
-        self.A[self.tril_indices] = self.A_tril
-        det_A = self.A.diag().prod()
-        first_term = 1 + self.v.t() @ triangular_solve(self.u, self.A)[0]
+        linv_u = triangular_solve(self.V, self.L * self.tril_mask, upper=False)[0]
+        vt_linv_u = self.V.t() @ linv_u
+        capacitance = vt_linv_u + self.I
 
-
-        return ((first_term.log() +  det_A.log()).abs()
+        return ((log_det_L + capacitance.det().abs().log()) # we would sum the log determinant of the diagonal component, but it is 0, because the diagnoal is I
                     # the jacobian is constant, so we just repeat it for the
                     # whole batch
                     .repeat(z.size(0), 1)
                     .squeeze())
 
+    def to(self, device="cuda:0"):
+        self.to(device)
+        self.I = self.I.to(device)
+        self.tril_mask = self.tril_mask.to(device)
