@@ -65,3 +65,12 @@ class NormalizingFlow(nn.Module):
 
     def log_prob(self, x):
         return self.final_density.log_prob(x)
+
+    def to(self, device="cuda:0"):
+        super(NormalizingFlow, self).to(device)
+        for bij in self.bijectors:
+            bij.to(device)
+
+        for key in self.base_density.__dict__:
+            if hasattr(getattr(self.base_density, key), "to"):
+                setattr(self.base_density, key, getattr(self.base_density, key).to(device))

@@ -32,3 +32,6 @@ class PReLUFlow(Flow):
         J = torch.where(z >= 0, I, self.alpha * I)
         log_abs_det = torch.log(torch.abs(J) + 1e-5)
         return self.agg_return(log_abs_det)
+
+    def to(self, device="cuda:0"):
+        super(PReLUFlow, self).to(device)
