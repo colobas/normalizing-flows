@@ -8,8 +8,6 @@ from .flow import Flow
 class BatchNormFlow(Flow):
     def __init__(self, dim, eps=1e-5, momentum=0.9):
         super(BatchNormFlow, self).__init__()
-        self.bijective = True
-
         self.momentum = momentum
         self.eps = eps
 
@@ -19,7 +17,7 @@ class BatchNormFlow(Flow):
         self.register_buffer('running_mean', torch.zeros(dim))
         self.register_buffer('running_var', torch.ones(dim))
 
-    def _call(self, z):
+    def forward(self, z):
         if self.training:
             self.batch_mean = z.mean(0)
             self.batch_var = z.var(0) # note MAF paper uses biased variance estimate; ie x.var(0, unbiased=False)
@@ -40,7 +38,7 @@ class BatchNormFlow(Flow):
 
         return x
 
-    def _inverse(self, x):
+    def inverse(self, x):
         if self.training:
             mean = self.batch_mean
             var = self.batch_var
@@ -60,6 +58,3 @@ class BatchNormFlow(Flow):
         return (log_abs_det_jacobian.sum()
                     .repeat(z.size(0), 1)
                     .squeeze())
-
-    def to(self, device="cuda:0"):
-        super(BatchNormFlow, self).to(device)

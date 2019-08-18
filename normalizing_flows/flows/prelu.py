@@ -10,21 +10,16 @@ class PReLUFlow(Flow):
         super(PReLUFlow, self).__init__()
         self.alpha = nn.Parameter(torch.Tensor([0.5]))
         self.bijective = True
-        #self.init_parameters()
 
         if dim == 1:
             self.agg_return = lambda res: res
         else:
             self.agg_return = lambda res: torch.sum(res, dim=1)
 
-    def init_parameters(self):
-        for param in self.parameters():
-            param.data.uniform_(0.01, 0.5)
-
-    def _call(self, z):
+    def forward(self, z):
         return torch.where(z >= 0, z, self.alpha * z)
 
-    def _inverse(self, x):
+    def inverse(self, x):
         return torch.where(x >= 0, x, (1. / self.alpha) * x)
 
     def log_abs_det_jacobian(self, z, x):
@@ -32,6 +27,3 @@ class PReLUFlow(Flow):
         J = torch.where(z >= 0, I, self.alpha * I)
         log_abs_det = torch.log(torch.abs(J) + 1e-5)
         return self.agg_return(log_abs_det)
-
-    def to(self, device="cuda:0"):
-        super(PReLUFlow, self).to(device)

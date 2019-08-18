@@ -42,10 +42,10 @@ class StructuredAffineFlow(Flow):
     def weights(self):
         return (self.L * self.tril_mask) + self.mul(self.V, self.V.t())
 
-    def _call(self, z):
+    def forward(self, z):
         return self.mul(self.weights, z.unsqueeze(-1)).squeeze(-1) + self.shift
 
-    def _inverse(self, z):
+    def inverse(self, z):
         return self.mul(torch.inverse(self.weights), (z - self.shift).unsqueeze(-1)).squeeze(-1)
 
     def log_abs_det_jacobian(self, z, z_next):

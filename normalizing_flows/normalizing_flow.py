@@ -1,76 +1,54 @@
+import torch
 import torch.nn as nn
 import torch.distributions as distrib
 import torch.distributions.transforms as transform
 
-class NormalizingFlow(nn.Module):
-    """
-    Instantiate a trainable NormalizingFlow
+class NormalizingFlow(nn.Sequential):
+    def __init__(self, *args, base_dist):
+        super(NormalizingFlow, self).__init__(*args)
+        self.base_dist = base_dist
 
-    dim: random variable dimension
-    blocks: list of primitive flows to stack
-    flow_length: how many times to stack the blocks in `blocks`
-
-    example:
-        - to have 3 x [AffineLUFlow, PReLUFlow], do
-            blocks=[AffineLUFlow, PReLUFlow],
-            flow_length=3
-
-        - to specify the sequence of flows explicitely, do
-            blocks=[the, specific, sequence, of, flows, you, want],
-            flow_length=1
-
-    `flow_length` defaults to 1, because I think the latter scenario
-    is what most people will assume without reading the docstring
-    """
-
-    def __init__(self, dim, blocks, base_density, flow_length=1, block_args=None):
-        super().__init__()
-        biject = []
-        if block_args is None:
-            for f in range(flow_length):
-                for b_flow in blocks:
-                    biject.append(b_flow(dim))
-        else:
-             for f in range(flow_length):
-                for b_flow, b_args in zip(blocks, block_args):
-                    if b_args is not None:
-                        biject.append(b_flow(dim, *b_args))
-                    else:
-                        biject.append(b_flow(dim))
-
-        self.transforms = transform.ComposeTransform(biject)
-        self.bijectors = nn.ModuleList(biject)
-        self.base_density = base_density
-        self.final_density = distrib.TransformedDistribution(base_density, self.transforms)
-
-    def forward(self, z0):
-        log_det = []
+    def forward(self, z_0):
+        sum_log_abs_det = 0
         # Applies series of flows
-        z_cur = z0
-        for b in range(len(self.bijectors)):
-            z_next = self.bijectors[b](z_cur)
-            log_det.append(self.bijectors[b].log_abs_det_jacobian(z_cur, z_next))
+        z_cur = z_0
+        for flow in self:
+            z_next = flow(z_cur)
+            sum_log_abs_det = sum_log_abs_det - flow.log_abs_det_jacobian(z_cur, z_next)
             z_cur = z_next
-        return z_next, log_det
+        return z_next, sum_log_abs_det
 
-    def inverse(self, z):
-        L = len(self.bijectors)
-        z_cur = z
+    def inverse(self, x):
+        sum_log_abs_det = 0
+        z_cur = x
+        for flow in reversed(self):
+            z_prev = flow.inverse(z_cur)
+            sum_log_abs_det = sum_log_abs_det - flow.log_abs_det_jacobian(z_prev, z_cur)
+            z_cur = z_prev
 
-        for b in range(L):
-            z_cur = self.bijectors[(L-1) - b]._inverse(z_cur)
-            self.log_det.append(self.bijectors[b].log_abs_det_jacobian(z_cur, z_next))
-
-        return z_cur
+        return z_prev, sum_log_abs_det
 
     def log_prob(self, x):
-        return self.final_density.log_prob(x)
+        z, log_abs_det_jacobian = self.inverse(x)
+
+        base_log_probs = self.base_dist.log_prob(z)
+
+        if len(base_log_probs.shape) > 1:
+            return base_log_probs.sum(dim=1) + log_abs_det_jacobian
+        else:
+            return base_log_probs + log_abs_det_jacobian
+
+    def sample(self, n_samples):
+        with torch.no_grad():
+            z_samples = self.base_dist.sample((n_samples, ))
+            return self.forward(z_samples)[0]
 
     def to(self, device="cuda:0"):
         super(NormalizingFlow, self).to(device)
-        for bij in self.bijectors:
-            bij.to(device)
+
+        for flow in self:
+            flow.to(device)
 
         for key in self.base_density.__dict__:
             if hasattr(getattr(self.base_density, key), "to"):
-                setattr(self.base_density, key, getattr(self.base_density, key).to(device))
+                setattr(self.base_dist, key, getattr(self.base_dist, key).to(device))
