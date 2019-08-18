@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 
 import torch
@@ -5,50 +6,47 @@ import torch.nn as nn
 
 from .flow import Flow
 
-def make_mask_func(mask):
-    mask = torch.LongTensor(mask)
-
-    def mask_func(x, dim=1):
-        # based on https://discuss.pytorch.org/t/batched-index-select/9115/10
-        views = [1 if i != dim else -1 for i in range(len(x.shape))]
-        expanse = list(x.shape)
-        expanse[dim] = -1
-        return torch.gather(x, dim, mask.view(views).expand(expanse))
-
-    return mask_func
-
 class CouplingLayerFlow(Flow):
-    def __init__(self, dim, s, t, x1_mask):
-        super(CouplingLayerFlow, self).__init__()
+    def __init__(self, input_size, hidden_size, n_hidden, mask):
+        super().__init__()
 
-        self.s = s
-        self.t = t
-        self.dim = dim
+        self.register_buffer('mask', mask)
 
-        x2_mask = [i for i in range(dim) if i not in x1_mask]
+        # scale function
+        s_net = [nn.Linear(input_size, hidden_size)]
+        for _ in range(n_hidden):
+            s_net += [nn.Tanh(), nn.Linear(hidden_size, hidden_size)]
+        s_net += [nn.Tanh(), nn.Linear(hidden_size, input_size)]
+        self.s_net = nn.Sequential(*s_net)
 
-        self.x1_mask = make_mask_func(x1_mask)
-        self.x2_mask = make_mask_func(x2_mask)
+        # translation function
+        t_net = [nn.Linear(input_size, hidden_size)]
+        for _ in range(n_hidden):
+            t_net += [nn.ReLU(), nn.Linear(hidden_size, hidden_size)]
+        t_net += [nn.ReLU(), nn.Linear(hidden_size, input_size)]
+        self.t_net = nn.Sequential(*t_net)
 
-    def _call(self, z):
-        # note that z2 = x2
-        z1 = self.x1_mask(z)
-        x2 = self.x2_mask(z)
+    def forward(self, z):
+        # apply mask
+        mz = z * self.mask
 
-        x1 = z1 * (self.s(x2).exp()) + self.t(x2)
+        # run through model
+        s = self.s_net(mz)
+        t = self.t_net(mz)
+        x = mz + (1 - self.mask) * (z - t) * torch.exp(-s)  # cf RealNVP eq 8 where u corresponds to x (here we're modeling u)
 
-        return torch.cat([x1, x2], dim=1)
+        return x
 
-    def _inverse(self, x):
-        # note that z2 = x2
-        x1 = self.x1_mask(x)
-        z2 = self.x2_mask(x)
+    def inverse(self, x):
+        # apply mask
+        mx = x * self.mask
 
-        z1 = (x1 - self.t(z2)) * ((-self.s(z2).exp()))
+        # run through model
+        s = self.s_net(mx)
+        t = self.t_net(mx)
+        z = mx + (1 - self.mask) * (z * s.exp() + t)  # cf RealNVP eq 7
 
-        return torch.cat([z1, z2], dim=1)
+        return z
 
-    def log_abs_det_jacobian(self, z, z_next):
-        z2 = self.x2_mask(z)
-
-        return self.s(z2).sum(dim=1).abs()
+    def log_abs_det_jacobian(self, z, x):
+        return (1 - self.mask) * self.s_net(mz)
