@@ -49,6 +49,6 @@ class NormalizingFlow(nn.Sequential):
         for flow in self:
             flow.to(device)
 
-        for key in self.base_density.__dict__:
-            if hasattr(getattr(self.base_density, key), "to"):
+        for key in self.base_dist.__dict__:
+            if hasattr(getattr(self.base_dist, key), "to"):
                 setattr(self.base_dist, key, getattr(self.base_dist, key).to(device))
