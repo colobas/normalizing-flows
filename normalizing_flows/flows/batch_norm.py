@@ -19,8 +19,20 @@ class BatchNormFlow(Flow):
 
     def forward(self, z):
         if self.training:
-            self.batch_mean = z.mean(0)
-            self.batch_var = z.var(0) # note MAF paper uses biased variance estimate; ie x.var(0, unbiased=False)
+            mean = self.batch_mean
+            var = self.batch_var
+        else:
+            mean = self.running_mean
+            var = self.running_var
+
+        x_hat = (z - self.beta) * torch.exp(-self.log_gamma)
+        x = x_hat * torch.sqrt(var + self.eps) + mean
+        return x
+
+    def inverse(self, x):
+        if self.training:
+            self.batch_mean = x.mean(0)
+            self.batch_var = x.var(0) # note MAF paper uses biased variance estimate; ie x.var(0, unbiased=False)
 
             # update running mean
             self.running_mean.mul_(self.momentum).add_(self.batch_mean.data * (1 - self.momentum))
@@ -32,25 +44,11 @@ class BatchNormFlow(Flow):
             mean = self.running_mean
             var = self.running_var
 
-        # compute normalized input (cf original batch norm paper algo 1)
-        z_hat = (z - mean) / torch.sqrt(var + self.eps)
-        x = self.log_gamma.exp() * z_hat + self.beta
-
-        return x
-
-    def inverse(self, x):
-        if self.training:
-            mean = self.batch_mean
-            var = self.batch_var
-        else:
-            mean = self.running_mean
-            var = self.running_var
-
-        z_hat = (x - self.beta) * torch.exp(-self.log_gamma)
-        z = z_hat * torch.sqrt(var + self.eps) + mean
+        z_hat = (x - mean) / torch.sqrt(var + self.eps)
+        z = self.log_gamma.exp() * z_hat + self.beta
         return z
 
-    def log_abs_det_jacobian(self, z, x):
+    def log_abs_det_jacobian(self, z, x=None):
         var = (self.batch_var if self.training else self.running_var)
 
         log_abs_det_jacobian = 0.5 * torch.log(var + self.eps) - self.log_gamma
@@ -58,3 +56,7 @@ class BatchNormFlow(Flow):
         return (log_abs_det_jacobian.sum()
                     .repeat(z.size(0), 1)
                     .squeeze())
+
+    def to(self, device="cuda:0"):
+        super(BatchNormFlow, self).to(device)
+
