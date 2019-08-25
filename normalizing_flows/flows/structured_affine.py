@@ -22,16 +22,17 @@ class StructuredAffineFlow(Flow):
         shift = nn.init.xavier_uniform_(torch.rand(dim, 1)).squeeze()
         self.shift = nn.Parameter(shift)
 
-        self.tril_mask = torch.zeros(dim, dim)
-        self.tril_indices = np.tril_indices(dim)
-        self.tril_mask[self.tril_indices] = 1.
+        tril_indices = np.tril_indices(dim)
+        self.register_buffer('tril_mask', torch.zeros(dim, dim))
+
+        self.tril_mask[tril_indices] = 1.
 
         L = torch.zeros(dim, dim)
-        L[self.tril_indices] = nn.init.xavier_uniform_(
-                torch.ones(len(self.tril_indices[0]), 1)).squeeze()
+        L[tril_indices] = nn.init.xavier_uniform_(
+                torch.ones(len(tril_indices[0]), 1)).squeeze()
         self.L = nn.Parameter(L)
 
-        self.I = torch.eye(dim)
+        self.register_buffer('I', torch.eye(dim))
 
         if dim == 1:
             self.mul = torch.mul
@@ -67,5 +68,5 @@ class StructuredAffineFlow(Flow):
 
     def to(self, device="cuda:0"):
         super(StructuredAffineFlow, self).to(device)
-        self.I = self.I.to(device)
-        self.tril_mask = self.tril_mask.to(device)
+        #self.I = self.I.to(device)
+        #self.tril_mask = self.tril_mask.to(device)

@@ -7,46 +7,50 @@ import torch.nn as nn
 from .flow import Flow
 
 class CouplingLayerFlow(Flow):
-    def __init__(self, input_size, hidden_size, n_hidden, mask):
+    def __init__(self, dim, hidden_size, n_hidden, mask):
         super().__init__()
 
-        self.register_buffer('mask', mask)
+        self.register_buffer('mask', torch.LongTensor(mask))
+
+        self.x1_mask = lambda z: torch.gather(z, 1, torch.nonzero(mask).repeat((len(z),1)))
+        self.x2_mask = lambda z: torch.gather(z, 1, torch.nonzero(1-mask).repeat((len(z),1)))
 
         # scale function
-        s_net = [nn.Linear(input_size, hidden_size)]
+        s = [nn.Linear(dim//2, hidden_size)]
         for _ in range(n_hidden):
-            s_net += [nn.Tanh(), nn.Linear(hidden_size, hidden_size)]
-        s_net += [nn.Tanh(), nn.Linear(hidden_size, input_size)]
-        self.s_net = nn.Sequential(*s_net)
+            s += [nn.Tanh(), nn.Linear(hidden_size, hidden_size)]
+        s += [nn.Tanh(), nn.Linear(hidden_size, dim//2)]
+        self.s = nn.Sequential(*s)
 
         # translation function
-        t_net = [nn.Linear(input_size, hidden_size)]
+        t = [nn.Linear(dim//2, hidden_size)]
         for _ in range(n_hidden):
-            t_net += [nn.ReLU(), nn.Linear(hidden_size, hidden_size)]
-        t_net += [nn.ReLU(), nn.Linear(hidden_size, input_size)]
-        self.t_net = nn.Sequential(*t_net)
+            t += [nn.ReLU(), nn.Linear(hidden_size, hidden_size)]
+        t += [nn.ReLU(), nn.Linear(hidden_size, dim//2)]
+        self.t = nn.Sequential(*t)
 
     def forward(self, z):
-        # apply mask
-        mz = z * self.mask
+        # note that z2 = x2
+        z1 = self.x1_mask(z)
+        x2 = self.x2_mask(z)
 
-        # run through model
-        s = self.s_net(mz)
-        t = self.t_net(mz)
-        x = mz + (1 - self.mask) * (z - t) * torch.exp(-s)  # cf RealNVP eq 8 where u corresponds to x (here we're modeling u)
+        x1 = z1 * (self.s(x2).exp()) + self.t(x2)
 
-        return x
+        return torch.cat([x1, x2], dim=1)
 
     def inverse(self, x):
-        # apply mask
-        mx = x * self.mask
+        # note that z2 = x2
+        x1 = self.x1_mask(x)
+        z2 = self.x2_mask(x)
 
-        # run through model
-        s = self.s_net(mx)
-        t = self.t_net(mx)
-        z = mx + (1 - self.mask) * (z * s.exp() + t)  # cf RealNVP eq 7
+        z1 = (x1 - self.t(z2)) * ((-self.s(z2).exp()))
 
-        return z
+        return torch.cat([z1, z2], dim=1)
 
-    def log_abs_det_jacobian(self, z, x):
-        return (1 - self.mask) * self.s_net(mz)
+    def log_abs_det_jacobian(self, z, z_next=None):
+        z2 = self.x2_mask(z)
+        return self.s(z2).abs().sum(dim=1)
+
+    def to(self, device="cuda:0"):
+        super(CouplingLayerFlow, self).to(device)
+

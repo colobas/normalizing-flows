@@ -4,7 +4,7 @@ import torch.distributions as distrib
 import torch.distributions.transforms as transform
 
 from .. import NormalizingFlow
-from ..flows import CoupledLayerFlow, BatchNormFlow
+from ..flows import CouplingLayerFlow, BatchNormFlow
 
 class RealNVP(nn.Module):
     def __init__(self, n_blocks, input_size, hidden_size, n_hidden, base_dist, batch_norm=True):
@@ -15,9 +15,9 @@ class RealNVP(nn.Module):
 
         # construct model
         modules = []
-        mask = torch.arange(input_size).float() % 2
+        mask = torch.arange(input_size) % 2
         for i in range(n_blocks):
-            modules += [CoupledLayerFlow(input_size, hidden_size, n_hidden, mask, cond_label_size)]
+            modules += [CouplingLayerFlow(input_size, hidden_size, n_hidden, mask)]
             mask = 1 - mask
             modules += batch_norm * [BatchNormFlow(input_size)]
 
