@@ -28,9 +28,10 @@ class AffineLUFlow(Flow):
         self.triu_mask[triu_indices] = 1.
 
         s = torch.tensor(U).diag()
-        sign_s = np.sign(s.numpy())
-        self.register_buffer('sign_s', torch.tensor(sign_s))
-        self.log_abs_s = nn.Parameter(s.abs().log())
+        #sign_s = np.sign(s.numpy())
+        #self.register_buffer('sign_s', torch.tensor(sign_s))
+        #self.log_abs_s = nn.Parameter(s.abs().log())
+        self.s = nn.Parameter(s)
 
         self.L = nn.Parameter(torch.tensor(L))
         self.U = nn.Parameter(torch.tensor(U))
@@ -51,7 +52,8 @@ class AffineLUFlow(Flow):
         """
         return self.mul(self.P, self.mul(
             self.L * self.tril_mask + self.I,
-            self.U * self.triu_mask + (self.sign_s * self.log_abs_s.exp())
+            self.U * self.triu_mask + self.s
+            #self.U * self.triu_mask + (self.sign_s * self.log_abs_s.exp())
         ))
 
     def forward(self, z):
@@ -70,7 +72,7 @@ class AffineLUFlow(Flow):
 
     def log_abs_det_jacobian(self, z, z_next):
 
-        log_abs_det_jac = self.log_abs_s.sum()
+        log_abs_det_jac = self.s.abs().log().sum()
 
         return (log_abs_det_jac
                     # the jacobian is constant, so we just repeat it for the
