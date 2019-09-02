@@ -18,8 +18,8 @@ class CouplingLayerFlow(Flow):
         # scale function
         s = [nn.Linear(dim//2, hidden_size)]
         for _ in range(n_hidden):
-            s += [nn.Tanh(), nn.Linear(hidden_size, hidden_size)]
-        s += [nn.Tanh(), nn.Linear(hidden_size, dim//2)]
+            s += [nn.ReLU(), nn.Linear(hidden_size, hidden_size)]
+        s += [nn.ReLU(), nn.Linear(hidden_size, dim//2), nn.Tanh()]
         self.s = nn.Sequential(*s)
 
         # translation function
@@ -43,13 +43,13 @@ class CouplingLayerFlow(Flow):
         x1 = self.x1_mask(x)
         z2 = self.x2_mask(x)
 
-        z1 = (x1 - self.t(z2)) * ((-self.s(z2).exp()))
+        z1 = (x1 - self.t(z2)) * ((-self.s(z2)).exp())
 
         return torch.cat([z1, z2], dim=1)
 
     def log_abs_det_jacobian(self, z, z_next=None):
         z2 = self.x2_mask(z)
-        return self.s(z2).abs().sum(dim=1)
+        return self.s(z2).sum(dim=1)
 
     def to(self, device="cuda:0"):
         super(CouplingLayerFlow, self).to(device)
