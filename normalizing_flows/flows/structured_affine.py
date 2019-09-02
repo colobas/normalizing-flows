@@ -17,7 +17,7 @@ class StructuredAffineFlow(Flow):
         super(StructuredAffineFlow, self).__init__()
 
         self.V = nn.Parameter(torch.rand(dim, dim))
-        nn.init.xavier_uniform_(self.V)
+        nn.init.orthogonal_(self.V)
 
         shift = nn.init.xavier_uniform_(torch.rand(dim, 1)).squeeze()
         self.shift = nn.Parameter(shift)
