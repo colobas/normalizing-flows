@@ -23,7 +23,8 @@ class PReLUFlow(Flow):
         return torch.where(x >= 0, x, (1. / self.alpha) * x)
 
     def log_abs_det_jacobian(self, z, x):
-        I = torch.ones_like(z)
-        J = torch.where(z >= 0, I, self.alpha * I)
-        log_abs_det = torch.log(torch.abs(J) + 1e-5)
+        J = torch.where(z >= 0,
+                        torch.tensor([1.]),
+                        self.alpha)
+        log_abs_det = torch.log(torch.abs(J) + 1e-6)
         return self.agg_return(log_abs_det)
