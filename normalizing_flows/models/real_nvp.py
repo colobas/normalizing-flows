@@ -19,7 +19,7 @@ class RealNVP(nn.Module):
         for i in range(n_blocks):
             modules += [CouplingLayerFlow(input_size, hidden_size, n_hidden, mask)]
             mask = 1 - mask
-            modules += batch_norm * [BatchNormFlow(input_size)]
+            modules += [BatchNormFlow(input_size) for _ in range(batch_norm)]
 
         self.net = NormalizingFlow(*modules, base_dist=base_dist)
 
@@ -30,21 +30,12 @@ class RealNVP(nn.Module):
         return self.net.inverse(x)
 
     def log_prob(self, x):
-        z, log_abs_det_jacobian = self.inverse(x)
-
-        base_log_probs = self.base_dist.log_prob(z)
-
-        if len(base_log_probs.shape) > 1:
-            return base_log_probs.sum(dim=1) + log_abs_det_jacobian
-        else:
-            return base_log_probs + log_abs_det_jacobian
+        return self.net.log_prob(x)
 
     def sample(self, n_samples):
-        with torch.no_grad():
-            z_samples = self.base_dist.sample((n_samples, ))
-            return self.forward(z_samples)[0]
+        return self.net.sample(n_samples)
 
-    def to(self, device="cuda:0"):
+    def to(self, device):
         super(RealNVP, self).to(device)
 
         self.net.to(device)
