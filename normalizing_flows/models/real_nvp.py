@@ -19,7 +19,8 @@ class RealNVP(nn.Module):
         for i in range(n_blocks):
             modules += [CouplingLayerFlow(input_size, hidden_size, n_hidden, mask)]
             mask = 1 - mask
-            modules += [BatchNormFlow(input_size) for _ in range(batch_norm)]
+            if batch_norm:
+                modules += [BatchNormFlow(input_size)]
 
         self.net = NormalizingFlow(*modules, base_dist=base_dist)
 
