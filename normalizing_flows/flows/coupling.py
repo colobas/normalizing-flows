@@ -48,8 +48,7 @@ class CouplingLayerFlow(Flow):
         return torch.cat((z1, x2), dim=1)
 
     def log_abs_det_jacobian(self, z, z_next=None):
-        #z2 = (self.x2_mask(z) if z_next is None else self.x2_mask(z_next))
-        z2 = self.x2_mask(z_next)
+        z2 = (self.x2_mask(z) if z_next is None else self.x2_mask(z_next))
         return -self.s(z2).sum(dim=1)
 
     def to(self):
