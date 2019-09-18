@@ -30,28 +30,6 @@ class CouplingLayerFlow(Flow):
         t += [nn.ReLU(), nn.Linear(hidden_size, dim//2)]
         self.t = nn.Sequential(*t)
 
-#    def forward(self, z):
-#        z1 = self.x1_mask(z)
-#        z2 = self.x2_mask(z)
-#
-#        x1 = (z1 - self.t(z2)) * torch.exp(-self.s(z2))
-#
-#        # note that z2 = x2
-#        return torch.cat((x1, z2), dim=1)
-#
-#    def inverse(self, x):
-#        x1 = self.x1_mask(x)
-#        x2 = self.x2_mask(x)
-#
-#        z1 = x1 * torch.exp(self.s(x2)) + self.t(x2)
-#
-#        # note that x2 = z2
-#        return torch.cat((z1, x2), dim=1)
-#    def log_abs_det_jacobian(self, z, z_next=None):
-#        z2 = (self.x2_mask(z) if z_next is None else self.x2_mask(z_next))
-#        return -self.s(z2).sum(dim=1)
-
-
     def inverse(self, x):
         x1 = self.x1_mask(x)
         x2 = self.x2_mask(x)
