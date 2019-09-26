@@ -52,6 +52,6 @@ class CouplingLayerFlow(Flow):
         z2 = (self.x2_mask(z) if z_next is None else self.x2_mask(z_next))
         return self.s(z2).sum(dim=1)
 
-    def to(self):
+    def to(self, device):
         super(CouplingLayerFlow, self).to(device)
 

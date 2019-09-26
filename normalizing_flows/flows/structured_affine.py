@@ -66,7 +66,7 @@ class StructuredAffineFlow(Flow):
                     .repeat(z.size(0), 1)
                     .squeeze())
 
-    def to(self, device="cuda:0"):
+    def to(self, device):
         super(StructuredAffineFlow, self).to(device)
         #self.I = self.I.to(device)
         #self.tril_mask = self.tril_mask.to(device)

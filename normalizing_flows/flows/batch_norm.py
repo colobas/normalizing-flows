@@ -57,6 +57,6 @@ class BatchNormFlow(Flow):
                     .repeat(z.size(0), 1)
                     .squeeze())
 
-    def to(self, device="cuda:0"):
+    def to(self, device):
         super(BatchNormFlow, self).to(device)
 
