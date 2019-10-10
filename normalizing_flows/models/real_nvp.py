@@ -7,7 +7,7 @@ from .. import NormalizingFlow
 from ..flows import CouplingLayerFlow, BatchNormFlow
 
 class RealNVP(nn.Module):
-    def __init__(self, n_blocks, input_size, hidden_size, n_hidden, base_dist, batch_norm=True):
+    def __init__(self, n_blocks, xdim, hdim, n_hidden, base_dist, batch_norm=True):
         super().__init__()
 
         # base distribution for calculation of log prob under the model
@@ -15,12 +15,12 @@ class RealNVP(nn.Module):
 
         # construct model
         modules = []
-        mask = torch.arange(input_size) % 2
+        mask = torch.arange(xdim) % 2
         for i in range(n_blocks):
-            modules += [CouplingLayerFlow(input_size, hidden_size, n_hidden, mask)]
+            modules += [CouplingLayerFlow(xdim, hdim, n_hidden, mask)]
             mask = 1 - mask
             if batch_norm:
-                modules += [BatchNormFlow(input_size)]
+                modules += [BatchNormFlow(xdim)]
 
         self.net = NormalizingFlow(*modules, base_dist=base_dist)
 
